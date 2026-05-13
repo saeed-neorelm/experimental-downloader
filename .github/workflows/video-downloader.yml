@@ -130,7 +130,7 @@ jobs:
           if [ "$QUALITY" = "audio" ]; then
               FORMAT_OPTS="-f ba -x --audio-format mp3"
           elif [ "$QUALITY" = "best" ]; then
-              FORMAT_OPTS="bv*+ba/b --merge-output-format mp4"
+              FORMAT_OPTS="-f bv*+ba/b --merge-output-format mp4"
           else
               FORMAT_OPTS="-f bv*[height<=${QUALITY}]+ba/b[height<=${QUALITY}] --merge-output-format mp4"
           fi
