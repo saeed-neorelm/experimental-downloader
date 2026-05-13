@@ -145,6 +145,7 @@ jobs:
           mkdir -p tmpvideos
           cd tmpvideos
           
+          echo 0
           yt-dlp --remote-components ejs:github --proxy "socks5://127.0.0.1:1080" $FORMAT_OPTS $OUTPUT_OPTS "${{ inputs.url }}"
           echo 1
           # find name
