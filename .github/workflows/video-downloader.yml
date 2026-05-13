@@ -130,7 +130,7 @@ jobs:
           if [ "$QUALITY" = "audio" ]; then
               FORMAT_OPTS="-f ba -x --audio-format mp3"
           elif [ "$QUALITY" = "best" ]; then
-              FORMAT_OPTS="-f bv*+ba/b --merge-output-format mp4"
+              FORMAT_OPTS="--merge-output-format mp4"
           else
               FORMAT_OPTS="-f bv*[height<=${QUALITY}]+ba/b[height<=${QUALITY}] --merge-output-format mp4"
           fi
@@ -145,27 +145,19 @@ jobs:
           mkdir -p tmpvideos
           cd tmpvideos
           
-          echo 0
           yt-dlp --remote-components ejs:github --proxy "socks5://127.0.0.1:1080" $FORMAT_OPTS $OUTPUT_OPTS "${{ inputs.url }}"
-          echo 1
+
           # find name
           FILE=$(ls -1 | head -n 1)
-          echo 2
           FILE_NO_EXTENSION="${FILE%.*}"
           echo "FILE=$FILE" >> $GITHUB_ENV
-          echo 2
           echo "FILE_NO_EXTENSION=$FILE_NO_EXTENSION" >> $GITHUB_ENV
-          echo 3
           SAFE_NAME=$(echo "$FILE_NO_EXTENSION" | sed 's/^[[:space:]]*//' | tr ' ' '_')
-          echo 4
           echo "SAFE_NAME=$SAFE_NAME" >> $GITHUB_ENV
-          echo 5
           
           # zip
           mkdir -p ../videos
-          echo 6
           zip -r -0 -s "${{ inputs.parts_size }}m" "../videos/${SAFE_NAME}.zip" "."
-          echo 7
           
       - name: Stop WARP
         if: ${{ inputs.use_warp }}
