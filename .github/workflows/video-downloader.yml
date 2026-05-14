@@ -163,6 +163,7 @@ jobs:
           # zip and overwrite
           mkdir -p ../videos
           rm -rf tmpzip
+          mkdir tmpzip
           zip -r -0 -s "${{ inputs.parts_size }}m" "tmpzip/${SAFE_NAME}.zip" "."
           mv tmpzip/* ../videos/
           

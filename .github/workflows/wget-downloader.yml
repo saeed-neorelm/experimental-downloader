@@ -119,6 +119,7 @@ jobs:
           # zip
           mkdir -p ../wget
           rm -rf tmpzip
+          mkdir tmpzip
           zip -0 -s "${{ inputs.parts_size }}m" "tmpzip/${SAFE_NAME}.zip" "$FILE"
           mv tmpzip/* ../wget/
 
