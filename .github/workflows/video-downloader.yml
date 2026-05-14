@@ -150,7 +150,7 @@ jobs:
           mkdir -p tmpvideos
           cd tmpvideos
           
-          yt-dlp --remote-components ejs:github --proxy "socks5://127.0.0.1:1080" --sub-langs all  --embed-subs $FORMAT_OPTS $OUTPUT_OPTS "${{ inputs.url }}"
+          yt-dlp --remote-components ejs:github --proxy "socks5://127.0.0.1:1080" --sub-langs all  --embed-subs --write-auto-subs $FORMAT_OPTS $OUTPUT_OPTS "${{ inputs.url }}"
 
           # find name
           FILE=$(ls -1 | head -n 1)
@@ -160,9 +160,11 @@ jobs:
           SAFE_NAME=$(echo "$FILE_NO_EXTENSION" | sed 's/^[[:space:]]*//' | tr ' ' '_')
           echo "SAFE_NAME=$SAFE_NAME" >> $GITHUB_ENV
           
-          # zip
+          # zip and overwrite
           mkdir -p ../videos
-          zip -r -0 -s "${{ inputs.parts_size }}m" "../videos/${SAFE_NAME}.zip" "."
+          rm -rf tmpzip
+          zip -r -0 -s "${{ inputs.parts_size }}m" "tmpzip/${SAFE_NAME}.zip" "."
+          mv tmpzip/* ../videos/
           
       - name: Stop WARP
         if: ${{ inputs.use_warp }}
