@@ -121,6 +121,7 @@ jobs:
           # zip
           mkdir -p ../bash
           rm -rf tmpzip
+          mkdir tmpzip
           zip -r -0 -s "${{ inputs.parts_size }}m" tmpzip/"${{ inputs.output_name }}.zip" .
           mv tmpzip/* ../bash/
 

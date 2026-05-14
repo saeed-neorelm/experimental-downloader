@@ -136,6 +136,7 @@ jobs:
           # zip
           mkdir -p ../magnet
           rm -rf tmpzip
+          mkdir tmpzip
           zip -0 -r -s "${{ inputs.parts_size }}m" "tmpzip/${RESULT_NAME}.zip" .
           mv tmpzip/* ../magnet
 

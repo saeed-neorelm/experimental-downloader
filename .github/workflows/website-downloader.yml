@@ -133,6 +133,7 @@ jobs:
           
           # zip
           rm -rf tmpzip
+          mkdir tmpzip
           zip -0 -r -s "${{ inputs.parts_size }}m" "tmpzip/${OUTPUT_NAME}.zip" ../archive_data
           mv tmpzip/* ./
           rm -rf tmpzip
