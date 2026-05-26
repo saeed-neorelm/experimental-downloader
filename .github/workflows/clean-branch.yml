@@ -1,0 +1,60 @@
+name: Clean Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: '🪾 Branch to clean'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, bash, videos, websites, wget, magnets, custom]
+      custom_name:
+        description: '🔎 Custom branch name'
+        required: false
+        type: string
+        default: 'videos'
+
+jobs:
+  download-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Clean And Push
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          if [ "${{ github.event.inputs.branch_name }}" = "custom" ]; then
+            TARGET_BRANCH="${{ github.event.inputs.custom_name }}"
+          else
+            TARGET_BRANCH="${{ github.event.inputs.branch_name }}"
+          fi
+
+          if [ -z "$TARGET_BRANCH" ]; then
+            echo "Branch name is empty"
+            exit 1
+          fi
+
+          git fetch origin
+
+          if [ "$TARGET_BRANCH" = "all" ]; then
+            echo "Mode: Cleaning all remote branches except the main and dev."
+            git remote update origin --prune
+            git for-each-ref --format='%(refname:short)' refs/remotes/origin/ |\
+            sed 's/origin\///' |\
+            grep -vE '^(main|dev)$' |\
+            xargs -r -n 1 git push origin --delete
+          else
+            echo "Mode: Cleaning single branch: $TARGET_BRANCH"
+            git push origin --delete "$TARGET_BRANCH"
+          fi

@@ -12,23 +12,13 @@ on:
         required: true
         default: 'best'
         type: choice
-        options: [best, 2160, 1440, 1080, 720, 480, audio]
-      use_warp:
-        description: '🛡️ Use WARP (sometimes helps | +40s)'
-        required: true
-        default: true
-        type: boolean
-      parts_size:
-        description: '🫙 Parts size (MB)'
-        required: false
-        type: string
-        default: '45'
+        options: [best, 2160, 1440, 1080, 720, 480, 360, 144, audio]
       output_name:
         description: '📝 Output file name (optional, without extension)'
         required: false
         type: string
       branch_name:
-        description: 'ℹ️ Branch name (simultanous workflows cannot be on the same branch)'
+        description: 'ℹ️ Branch name (simultaneous workflows cannot be on the same branch)'
         required: true
         default: 'videos'
         type: string
@@ -72,7 +62,6 @@ jobs:
           ffmpeg -version
 
       - name: Setup WARP
-        if: ${{ inputs.use_warp }}
         run: |
           # clean up any existing container/network (useful for self-hosted runners)
           docker rm -f warp 2>/dev/null || true
@@ -164,11 +153,10 @@ jobs:
           mkdir -p ../videos
           rm -rf tmpzip
           mkdir tmpzip
-          zip -r -0 -s "${{ inputs.parts_size }}m" "tmpzip/${SAFE_NAME}.zip" "."
+          zip -r -0 -s "45m" "tmpzip/${SAFE_NAME}.zip" "."
           mv tmpzip/* ../videos/
           
       - name: Stop WARP
-        if: ${{ inputs.use_warp }}
         run: |
           docker stop warp || true
 

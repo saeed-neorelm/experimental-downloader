@@ -1,35 +1,45 @@
-name: Web Downloader
+name: Video Downloader (Advanced)
 
 on:
   workflow_dispatch:
     inputs:
-      website_url:
-        description: '🔗 Website URL to archive'
+      url:
+        description: '🔗 Video video URL'
         required: true
         type: string
-      output_name:
-        description: '📝 Output file name (without extension)'
+      quality:
+        description: '🎬 Video quality'
         required: true
-        default: 'website_archive'
-        type: string
+        default: 'best'
+        type: choice
+        options: [best, 2160, 1440, 1080, 720, 480, 360, 144, audio]
       use_warp:
         description: '🛡️ Use WARP (sometimes helps | +40s)'
         required: true
-        default: false
+        default: true
         type: boolean
       parts_size:
         description: '🫙 Parts size (MB)'
         required: false
         type: string
         default: '45'
+      output_name:
+        description: '📝 Output file name (optional, without extension)'
+        required: false
+        type: string
       branch_name:
         description: 'ℹ️ Branch name (simultaneous workflows cannot be on the same branch)'
         required: true
-        default: 'websites'
+        default: 'videos'
+        type: string
+      subtitles:
+        description: "📄 Input for the subtitles. (e.g. `--sub-langs \"all\"`, `--sub-langs \"en.*\"`, `--sub-langs \"en.*,ja,per,fa\"`, `--sub-langs \"en.*\" --write-auto-subs` | `--sub-langs` defines languages, `--write-auto-subs` defines inclusion of auto-generated subtitles)"
+        required: true
+        default: '--sub-langs \"all\"'
         type: string
 
 jobs:
-  archive-and-release:
+  download-and-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -58,10 +68,14 @@ jobs:
             git push --set-upstream origin ${{ inputs.branch_name }}
           fi
 
-      - name: Setup ArchiveBox Docker
+      - name: Setup FFmpeg
         run: |
-          docker pull archivebox/archivebox:latest
-      
+          wget https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          tar -xf ffmpeg-master-latest-linux64-gpl.tar.xz
+          sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/local/bin/
+          sudo mv ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/local/bin/
+          ffmpeg -version
+
       - name: Setup WARP
         if: ${{ inputs.use_warp }}
         run: |
@@ -87,7 +101,7 @@ jobs:
           WARP_READY=false
           for i in {1..10}; do
             # use 1.1.1.1 for faster trace resolution
-            RESULT=$(curl -s --max-time 3 --socks5-hostname 127.0.0.1:1080 https://1.1.1.1/cdn-cgi/trace 2>/dev/null || true)
+            RESULT=$(curl -s --max-time 3 --socks5-hostname 127.0.0.1:1080 https://cloudflare.com/cdn-cgi/trace 2>/dev/null || true)
             
             if echo "$RESULT" | grep -qE "warp=(on|plus)"; then
               echo "WARP proxy is ready! (Took $i attempts)"
@@ -106,40 +120,58 @@ jobs:
             # exit 1  <-- Uncomment this if you want the pipeline to FAIL when WARP fails
           fi
 
-      - name: Archive Website
-        id: archive
+      - name: Setup yt-dlp
         run: |
-          # create a temporary directory for ArchiveBox data
-          mkdir -p archive_data
-          chmod 777 archive_data
+          sudo apt-get install -y python3-pip curl
+          pip install yt-dlp --pre
 
-          PROXY_ARGS=""
-          if [ ${{ inputs.use_warp }} == 'true' ]; then
-            echo "Using WARP proxy..."
-            PROXY_ARGS="--network warp-net -e HTTP_PROXY=socks5h://warp:1080 -e HTTPS_PROXY=socks5h://warp:1080"
+          # install deno
+          curl -fsSL https://deno.land/install.sh | sh
+          export DENO_INSTALL="$HOME/.deno"
+          export PATH="$DENO_INSTALL/bin:$PATH"
+          echo "$DENO_INSTALL/bin" >> $GITHUB_PATH
+          deno --version
+
+      - name: Download videos
+        id: download
+        run: |
+          # quality
+          QUALITY="${{ inputs.quality }}"
+          if [ "$QUALITY" = "audio" ]; then
+              FORMAT_OPTS="-f ba -x --audio-format mp3"
+          elif [ "$QUALITY" = "best" ]; then
+              FORMAT_OPTS="--merge-output-format mp4"
+          else
+              FORMAT_OPTS="-f bv*[height<=${QUALITY}]+ba/b[height<=${QUALITY}] --merge-output-format mp4"
           fi
           
-          # initialize ArchiveBox
-          docker run --rm $PROXY_ARGS -v $PWD/archive_data:/data archivebox/archivebox init --setup
-          
-          # add and archive the URL
-          docker run --rm $PROXY_ARGS -v $PWD/archive_data:/data archivebox/archivebox add "${{ inputs.website_url }}"
-          
-          # move to the branch folder
-          mkdir -p web
-          cd web
-          
+          # output
           OUTPUT_NAME="${{ inputs.output_name }}"
+          if [ -n "$OUTPUT_NAME" ]; then
+              OUTPUT_OPTS="-o ${OUTPUT_NAME}.%(ext)s"
+          fi
           
-          # zip
+          # download
+          mkdir -p tmpvideos
+          cd tmpvideos
+          
+          yt-dlp --remote-components ejs:github --proxy "socks5://127.0.0.1:1080" ${{ inputs.subtitles }} --embed-subs -i $FORMAT_OPTS $OUTPUT_OPTS "${{ inputs.url }}"
+
+          # find name
+          FILE=$(ls -1 | head -n 1)
+          FILE_NO_EXTENSION="${FILE%.*}"
+          echo "FILE=$FILE" >> $GITHUB_ENV
+          echo "FILE_NO_EXTENSION=$FILE_NO_EXTENSION" >> $GITHUB_ENV
+          SAFE_NAME=$(echo "$FILE_NO_EXTENSION" | sed 's/^[[:space:]]*//' | tr ' ' '_')
+          echo "SAFE_NAME=$SAFE_NAME" >> $GITHUB_ENV
+          
+          # zip and overwrite
+          mkdir -p ../videos
           rm -rf tmpzip
           mkdir tmpzip
-          zip -0 -r -s "${{ inputs.parts_size }}m" "tmpzip/${OUTPUT_NAME}.zip" ../archive_data
-          mv tmpzip/* ./
-          rm -rf tmpzip
+          zip -r -0 -s "${{ inputs.parts_size }}m" "tmpzip/${SAFE_NAME}.zip" "."
+          mv tmpzip/* ../videos/
           
-          echo "FILE_NAME=$OUTPUT_NAME" >> $GITHUB_ENV
-
       - name: Stop WARP
         if: ${{ inputs.use_warp }}
         run: |
@@ -149,24 +181,25 @@ jobs:
         run: |
           rm -f README.md
           
-          echo "# 📥 Archive Download Links" > README.md
+          echo "# 📥 Download Links" > README.md
           echo "Generated on: $(date)" >> README.md
           echo "" >> README.md
           
-          # loop through all files in the web folder
-          for file in web/*; do
+          # loop through all files in the videos folder
+          for file in videos/*; do
             if [ -f "$file" ]; then
               filename=$(basename "$file")
               # URL Encode spaces for the markdown link
-              encoded_filename=$(echo "$filename" | sed 's/ /%20/g')
+              encoded_filename=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$filename")
               # Construct the raw link
-              url="https://github.com/${{ github.repository }}/raw/${{ inputs.branch_name }}/web/$encoded_filename"
+              url="https://github.com/${{ github.repository }}/raw/${{ inputs.branch_name }}/videos/$encoded_filename"
               echo "- [Download $filename]($url)" >> README.md
             fi
           done
           
       - name: Commit
         run: |
-          git add README.md web
-          git commit -m "[bot] Add website archive ${{ env.FILE_NAME }}"
+          git add README.md videos
+          git commit -m "[bot] Add video ${{ env.SAFE_NAME }}"
           git push
+          
